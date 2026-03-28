@@ -1,0 +1,13 @@
+requests
+beautifulsoup4
+urllib3
+streamlit
+llama-index
+huggingface_hub
+fastembed
+psutil
+llama-index-retrievers-bm25
+sentence-transformers
+llama-index-llms-ollama
+llama-index-embeddings-fastembed
+python-dotenv

@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Virtual environment
+rag-venv/
+venv/
+.venv/
+
+# Environment variables
+.env
+
+# LlamaIndex local storage
+storage/
+
+# Processed & downloaded data
+processed_docs/
+docs/
+
+# Models
+model/
+
+# Logs
+*.log
+logger/logs/
+
+# OS
+.DS_Store
+Thumbs.db
+ROADMAP.md
