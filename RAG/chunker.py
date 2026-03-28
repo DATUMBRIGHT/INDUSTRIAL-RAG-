@@ -7,7 +7,7 @@ from llama_index.core.extractors import SummaryExtractor, TitleExtractor
 from llama_index.core.ingestion import IngestionPipeline
 from llama_index.core import Document, VectorStoreIndex, StorageContext, load_index_from_storage
 from llama_index.core.node_parser import SemanticSplitterNodeParser
-from llama_index.embeddings.fastembed import FastEmbedEmbedding
+from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
 import dotenv
 
@@ -31,10 +31,10 @@ class DocChunker:
     def __init__(self, folder_path: Path = None):
         self.folder_path = folder_path
 
-        self.embed_model = FastEmbedEmbedding(
-            model_name="nomic-ai/nomic-embed-text-v1.5",
-            batch_size=16,
-            max_length=512,  # caps ONNX attention matrix — prevents 17GB allocations
+        self.embed_model = OllamaEmbedding(
+            model_name="nomic-embed-text",
+            base_url=os.getenv("OLLAMA_HOST", "http://localhost:11434"),
+            embed_batch_size=16,
         )
 
         self.llm = Ollama(

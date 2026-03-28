@@ -19,7 +19,7 @@ venv/
 storage/
 
 # Processed & downloaded data
-processed_docs/
+
 docs/
 
 # Models
