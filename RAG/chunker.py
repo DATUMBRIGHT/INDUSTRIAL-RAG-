@@ -6,7 +6,7 @@ from typing import List
 from llama_index.core.extractors import SummaryExtractor, TitleExtractor
 from llama_index.core.ingestion import IngestionPipeline
 from llama_index.core import Document, VectorStoreIndex, StorageContext, load_index_from_storage
-from llama_index.core.node_parser import SemanticSplitterNodeParser
+from llama_index.core.node_parser import SentenceSplitter
 from llama_index.embeddings.ollama import OllamaEmbedding
 from llama_index.llms.ollama import Ollama
 import dotenv
@@ -20,11 +20,25 @@ if base_path.exists():
 else:
     print("base_path not found. Please check the path to your model directory.")
 
-# 1 doc at a time — semantic splitter batches all sentences per doc,
-# so even 1 large manual can spike RAM. Raise if your manuals are small.
 BATCH_SIZE = 1
-
 PERSIST_DIR = Path(__file__).parent.parent / "storage"
+
+# Hard wrap any single line exceeding this char count before splitting.
+# ~1500 chars ≈ 375 tokens — ensures no individual "sentence" blows embed context.
+MAX_LINE_CHARS = 1500
+
+
+def _preprocess_text(text: str) -> str:
+    """Break oversized lines/blocks before the splitter sees them."""
+    lines = text.split("\n")
+    result = []
+    for line in lines:
+        if len(line) > MAX_LINE_CHARS:
+            chunks = [line[i:i + MAX_LINE_CHARS] for i in range(0, len(line), MAX_LINE_CHARS)]
+            result.extend(chunks)
+        else:
+            result.append(line)
+    return "\n".join(result)
 
 
 class DocChunker:
@@ -49,7 +63,7 @@ class DocChunker:
         for file in self.folder_path.glob("*.md"):
             with open(file, "r", encoding="utf-8") as f:
                 yield Document(
-                    text=f.read(),
+                    text=_preprocess_text(f.read()),
                     doc_id=file.stem,
                     metadata={"file_name": file.name},
                 )
@@ -66,10 +80,10 @@ class DocChunker:
             storage_context = StorageContext.from_defaults(persist_dir=str(PERSIST_DIR))
             return load_index_from_storage(storage_context, embed_model=self.embed_model)
 
-        semantic_parser = SemanticSplitterNodeParser(
-            buffer_size=2,
-            breakpoint_percentile_threshold=90,
-            embed_model=self.embed_model,
+        parser = SentenceSplitter(
+            chunk_size=512,
+            chunk_overlap=50,
+            paragraph_separator="\n\n",
         )
 
         index = VectorStoreIndex([], embed_model=self.embed_model)
@@ -87,11 +101,11 @@ class DocChunker:
             batch.append(doc)
             if len(batch) < BATCH_SIZE:
                 continue
-            self._process_batch(batch, semantic_parser, pipeline, index)
+            self._process_batch(batch, parser, pipeline, index)
             batch = []
 
         if batch:
-            self._process_batch(batch, semantic_parser, pipeline, index)
+            self._process_batch(batch, parser, pipeline, index)
 
         PERSIST_DIR.mkdir(parents=True, exist_ok=True)
         index.storage_context.persist(persist_dir=str(PERSIST_DIR))
@@ -102,7 +116,7 @@ class DocChunker:
     def _process_batch(
         self,
         docs: List[Document],
-        parser: SemanticSplitterNodeParser,
+        parser: SentenceSplitter,
         pipeline: IngestionPipeline,
         index: VectorStoreIndex,
     ) -> None:
@@ -113,7 +127,6 @@ class DocChunker:
         processed_nodes = pipeline.run(nodes=nodes, show_progress=True)
         index.insert_nodes(processed_nodes)
 
-        # Release batch memory before the next one
         del docs, nodes, processed_nodes
         gc.collect()
 
